@@ -1,0 +1,191 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Job Notification Center</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      margin: 0 auto;
+      max-width: 800px;
+      background-image: url('/static/logos/background.png');
+      background-size: cover;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    .container {
+      background: rgba(0, 0, 0, 0.85);
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 12px 25px rgba(0, 0, 0, 0.6);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: white;
+    }
+    input, button, textarea {
+      padding: 10px;
+      margin: 8px 0;
+      width: 100%;
+      font-size: 16px;
+    }
+    .notif {
+      background: #fff;
+      color: black;
+      padding: 12px;
+      margin: 10px 0;
+      border-left: 5px solid #4caf50;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: background 0.3s;
+    }
+    .notif:hover {
+      background: #f0f0f0;
+    }
+    button {
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    hr {
+      margin: 30px 0;
+      border-color: #ccc;
+    }
+    @keyframes load {
+      0% { width: 10%; }
+      50% { width: 90%; }
+      100% { width: 10%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🎯 Set Your Job Preferences</h2>
+    <input id="username" placeholder="Enter your username" aria-label="Username" />
+    <textarea id="preferences" rows="6">{
+  "roles": ["Data Analyst", "ML Engineer"],
+  "locations": ["Remote", "Bangalore"],
+  "skills": ["Python", "SQL"]
+}</textarea>
+    <button onclick="setPreferences()">💾 Save Preferences</button>
+
+    <hr />
+
+    <h2>🔔 Your Notifications</h2>
+    <button onclick="fetchNotifications()">📥 Load Notifications</button>
+    <div id="notifications"></div>
+    <button onclick="markAllRead()">✅ Mark All as Read</button>
+  </div>
+
+  <script>
+    let username = "";
+
+    // Populate username from URL and auto-fetch
+    window.addEventListener("DOMContentLoaded", () => {
+      const params = new URLSearchParams(window.location.search);
+      const uname = params.get("username");
+      if (uname) {
+        document.getElementById("username").value = uname;
+        username = uname;
+        fetchNotifications();
+      }
+    });
+
+    async function setPreferences() {
+      username = document.getElementById('username').value.trim();
+      const prefsText = document.getElementById('preferences').value;
+
+      if (!username) return alert("Please enter your username.");
+
+      let prefs;
+      try {
+        prefs = JSON.parse(prefsText);
+      } catch (err) {
+        return alert("❌ Invalid JSON format in preferences.");
+      }
+
+      try {
+        const res = await fetch('/set_preferences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, preferences: prefs })
+        });
+        const data = await res.json();
+        alert(data.message || "✅ Preferences saved.");
+      } catch (err) {
+        alert("❌ Failed to save preferences.");
+        console.error(err);
+      }
+    }
+
+    async function fetchNotifications() {
+      username = document.getElementById('username').value.trim();
+      if (!username) return alert("Enter your username to load notifications.");
+
+      const container = document.getElementById('notifications');
+      container.innerHTML = `
+        <div class="notif" style="text-align:center;">
+          <p>Loading notifications...</p>
+          <div style="width:100%; height:4px; background:#f0f0f0;">
+            <div style="width:50%; height:100%; background:#4caf50; animation: load 2s infinite;"></div>
+          </div>
+        </div>`;
+
+      try {
+        const res = await fetch(`/notifications/${username}`);
+        const data = await res.json();
+
+        container.innerHTML = '';
+
+        if (!data.length) {
+          container.innerHTML = '<p>No new notifications.</p>';
+          return;
+        }
+        data.forEach(n => {
+  const div = document.createElement('div');
+  div.className = 'notif';
+  div.innerHTML = `
+    <strong>${n.title}</strong> at <strong>${n.company}</strong><br>
+    📍 ${n.location} <br>
+    🕒 ${new Date(n.created_at).toLocaleString()}<br>
+    <em>${n.message}</em><br>
+    ${n.apply_url ? `<a href="${n.apply_url}" target="_blank">Apply Now</a>` : ''}
+  `;
+  container.appendChild(div);
+});
+
+      } catch (err) {
+        container.innerHTML = `<p style="color:red;">❌ Error loading notifications. Try again later.</p>`;
+        console.error(err);
+      }
+    }
+
+    async function markAllRead() {
+      username = document.getElementById('username').value.trim();
+      if (!username) return alert("Enter your username to mark notifications as read.");
+
+      try {
+        const res = await fetch('/mark_read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username })
+        });
+        const data = await res.json();
+        alert(data.message || "✅ Notifications marked as read.");
+        fetchNotifications();
+      } catch (err) {
+        alert("❌ Failed to mark as read.");
+        console.error(err);
+      }
+    }
+  </script>
+</body>
+</html>

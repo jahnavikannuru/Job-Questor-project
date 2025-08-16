@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Job Questor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="upload-page">
+  <div class="container" role="main" aria-label="Job Questor Application">
+    <h1>Job Questor</h1>
+
+    <label for="resumeInput" class="upload-label">Upload Your Resume</label>
+    <input type="file" id="resumeInput" accept=".txt,.pdf,.doc,.docx" />
+    <div id="uploadHelp">Supported file types: .txt, .pdf, .doc, .docx</div>
+
+    <div id="error"></div>
+
+    <section id="skillsSection" style="display:none;">
+      <div class="section-title">Detected Skills</div>
+      <div id="skillsList" class="skills-list"></div>
+    </section>
+
+    <section id="jobsSection" style="display:none;">
+      <div class="section-title">Recommended Jobs</div>
+      <div id="jobList"></div>
+    </section>
+
+    <button onclick="logout()" style="margin-top: 20px; padding: 10px 20px; border-radius: 8px; background: #ff5555; color: white; border: none; cursor: pointer;">
+      Logout
+    </button>
+    <button onclick="goToNotifications()" style="margin-top: 10px; padding: 10px 20px; border-radius: 8px; background: #4CAF50; color: white; border: none; cursor: pointer;">
+      View Notifications
+    </button>
+  </div>
+
+  <script>
+    // Prevent unauthorized access
+    if (!sessionStorage.getItem("username")) {
+      window.location.href = "login.html";
+    }
+
+    const resumeInput = document.getElementById('resumeInput');
+    const errorDiv = document.getElementById('error');
+    const skillsSection = document.getElementById('skillsSection');
+    const jobsSection = document.getElementById('jobsSection');
+    const skillsList = document.getElementById('skillsList');
+    const jobList = document.getElementById('jobList');
+
+    resumeInput.addEventListener('change', async () => {
+      errorDiv.style.display = 'none';
+      errorDiv.textContent = '';
+      skillsSection.style.display = 'none';
+      jobsSection.style.display = 'none';
+      skillsList.innerHTML = '';
+      jobList.innerHTML = '';
+
+      if (resumeInput.files.length === 0) return;
+
+      const formData = new FormData();
+      formData.append('resume', resumeInput.files[0]);
+
+      try {
+        const response = await fetch('http://127.0.0.1:5000/recommend-jobs', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          errorDiv.textContent = err.error || 'An error occurred';
+          errorDiv.style.display = 'block';
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data.detected_skills.length === 0) {
+          skillsList.innerHTML = '<em>No skills detected.</em>';
+        } else {
+          data.detected_skills.forEach(skill => {
+            const chip = document.createElement('div');
+            chip.className = 'skill-chip';
+            chip.textContent = skill;
+            skillsList.appendChild(chip);
+          });
+        }
+        skillsSection.style.display = 'block';
+
+        if (data.recommended_jobs.length === 0) {
+          jobList.innerHTML = '<em>No matching jobs found.</em>';
+        } else {
+          data.recommended_jobs.forEach(job => {
+            const card = document.createElement('div');
+            card.className = 'job-card';
+            card.innerHTML = `
+              <img src="${job.logo}" alt="${job.company} logo" class="company-logo" />
+              <div class="job-info">
+                <div class="job-title">${job.title} <span class="company">@ ${job.company}</span></div>
+                <div class="location">Location: ${job.location}</div>
+                <div class="required-skills"><strong>Required Skills:</strong> ${job.matched_skills.join(', ')}</div>
+                <div class="description">${job.description}</div>
+                <a href="${job.apply_url}" target="_blank" class="apply-button">Apply Now</a>
+              </div>
+            `;
+            jobList.appendChild(card);
+          });
+        }
+        jobsSection.style.display = 'block';
+      } catch (error) {
+        errorDiv.textContent = 'Failed to communicate with backend.';
+        errorDiv.style.display = 'block';
+      }
+    });
+
+    function logout() {
+      sessionStorage.removeItem("username");
+      window.location.href = "login.html";
+    }
+
+    function goToNotifications() {
+      const username = sessionStorage.getItem("username");
+      if (!username) {
+        alert("Please log in first.");
+        return;
+      }
+      window.location.href = `notifications.html?username=${encodeURIComponent(username)}`;
+    }
+  </script>
+</body>
+</html>
